@@ -6,36 +6,27 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 import java.util.List;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.RepeatedTest;
 
 public class AsyncProcessorTest {
-	@RepeatedTest(5)
-    public void testProcessAsyncSuccess() throws ExecutionException, InterruptedException {
-        
-		Microservice mockService1 = mock(Microservice.class);
-        Microservice mockService2 = mock(Microservice.class);
-        
-        when(mockService1.retrieveAsync(any())).thenReturn(CompletableFuture.completedFuture("Hello"));
-        when(mockService2.retrieveAsync(any())).thenReturn(CompletableFuture.completedFuture("World"));
-
+    @RepeatedTest(5)
+    public void testProcessAsyncSuccess() throws Exception {
+        Microservice service1 = new Microservice("Hello");
+        Microservice service2 = new Microservice("World");
+    
         AsyncProcessor processor = new AsyncProcessor();
-        CompletableFuture<String> resultFuture = processor.processAsync(List.of(mockService1, mockService2), null);
-        
-        String result = resultFuture.get();
-        assertEquals("Hello World", result);
-        
-//        CompletableFuture<List<String>> resultFuture =
-//        	    processor.processAsyncWithCompletionOrder(
-//        	        List.of(mockService1, mockService2));
-
-//        	List<String> order = resultFuture.get();
-//        	System.out.println(order);
-
-        
+    
+        CompletableFuture<String> resultFuture =
+                processor.processAsync(List.of(service1, service2), "hi");
+    
+        String result = resultFuture.get(1, TimeUnit.SECONDS);
+    
+        // Order preserved by joining list order in processAsync
+        assertEquals("Hello:HI World:HI", result);
     }
+    
 	
 	
 	@ParameterizedTest
