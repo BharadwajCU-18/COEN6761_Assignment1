@@ -35,6 +35,7 @@ public class AsyncProcessor {
                 .thenApply(v -> completionOrder);
 
     }
+
     // Task 2 A
     public CompletableFuture<String> processAsyncFailFast(
             List<Microservice> services,
@@ -58,6 +59,36 @@ public class AsyncProcessor {
                 .thenApply(v -> futures.stream()
                         .map(CompletableFuture::join) // join preserves list order
                         .collect(Collectors.joining(" ")));
+    }
+
+    // Task 2 B
+    public CompletableFuture<List<String>> processAsyncFailPartial(
+            List<Microservice> services,
+            List<String> messages) {
+        if (services == null || messages == null) {
+            throw new IllegalArgumentException("services/messages must not be null");
+        }
+        if (services.size() != messages.size()) {
+            throw new IllegalArgumentException("services and messages must have same size");
+        }
+
+        // Convert each call into a "safe" future that never throws:
+        // success -> CompletableFuture.completedFuture(result)
+        // failure -> CompletableFuture.completedFuture(null)
+        List<CompletableFuture<String>> safeFutures = new ArrayList<>();
+
+        for (int i = 0; i < services.size(); i++) {
+            CompletableFuture<String> f = services.get(i).retrieveAsync(messages.get(i))
+                    .handle((val, ex) -> ex == null ? val : null);
+            safeFutures.add(f);
+        }
+
+        // allOf now cannot fail (because each inner future completes normally)
+        return CompletableFuture.allOf(safeFutures.toArray(new CompletableFuture[0]))
+                .thenApply(v -> safeFutures.stream()
+                        .map(CompletableFuture::join)
+                        .filter(x -> x != null) // keep only successes
+                        .collect(Collectors.toList()));
     }
 
 }
