@@ -35,6 +35,7 @@ public class AsyncProcessor {
                 .thenApply(v -> completionOrder);
 
     }
+
     // Task 2 A
     public CompletableFuture<String> processAsyncFailFast(
             List<Microservice> services,
@@ -57,6 +58,33 @@ public class AsyncProcessor {
         return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
                 .thenApply(v -> futures.stream()
                         .map(CompletableFuture::join) // join preserves list order
+                        .collect(Collectors.joining(" ")));
+    }
+
+    // Task 2 B
+    public CompletableFuture<String> processAsyncFailSoft(
+            List<Microservice> services,
+            List<String> messages,
+            String fallbackValue) {
+        if (services == null || messages == null) {
+            throw new IllegalArgumentException("services/messages must not be null");
+        }
+        if (services.size() != messages.size()) {
+            throw new IllegalArgumentException("services and messages must have same size");
+        }
+
+        List<CompletableFuture<String>> safeFutures = new ArrayList<>();
+
+        for (int i = 0; i < services.size(); i++) {
+            CompletableFuture<String> f = services.get(i).retrieveAsync(messages.get(i))
+                    .exceptionally(ex -> fallbackValue); // replace failure with fallback
+            safeFutures.add(f);
+        }
+
+        // allOf cannot fail because each future maps failure -> fallback
+        return CompletableFuture.allOf(safeFutures.toArray(new CompletableFuture[0]))
+                .thenApply(v -> safeFutures.stream()
+                        .map(CompletableFuture::join)
                         .collect(Collectors.joining(" ")));
     }
 
