@@ -74,7 +74,7 @@ public class AsyncProcessorTest {
     }
 
     @Test
-    void failSoft_shouldUseFallback_whenServiceFails_andNeverThrow() throws Exception {
+    void failFast_shouldPropagateException_whenAnyServiceFails() {
         AsyncProcessor processor = new AsyncProcessor();
 
         Microservice ok1 = new Microservice("OK1");
@@ -90,51 +90,41 @@ public class AsyncProcessorTest {
 
         Microservice ok2 = new Microservice("OK2");
 
-        String fallback = "FALLBACK";
-
-        CompletableFuture<String> result = processor.processAsyncFailSoft(
+        CompletableFuture<String> result = processor.processAsyncFailFast(
                 List.of(ok1, fail, ok2),
-                List.of("m1", "m2", "m3"),
-                fallback);
+                List.of("m1", "m2", "m3"));
 
-        String out = result.get(1, TimeUnit.SECONDS);
-
-        // Should not throw, and should contain fallback in the middle
-        assertTrue(out.startsWith("OK1:"));
-        assertTrue(out.contains(" " + fallback + " "));
-        assertTrue(out.endsWith("OK2:M3"));
+        assertThrows(ExecutionException.class,
+                () -> result.get(1, TimeUnit.SECONDS));
     }
 
     @Test
-    void failSoft_allFail_shouldReturnAllFallbacks() throws Exception {
+    void failPartial_shouldReturnOnlySuccessfulResults_andNeverThrow() throws Exception {
         AsyncProcessor processor = new AsyncProcessor();
 
-        Microservice fail1 = new Microservice("F1") {
+        Microservice ok1 = new Microservice("OK1");
+
+        Microservice fail = new Microservice("FAIL") {
             @Override
             public CompletableFuture<String> retrieveAsync(String input) {
                 CompletableFuture<String> f = new CompletableFuture<>();
-                f.completeExceptionally(new RuntimeException("fail"));
+                f.completeExceptionally(new RuntimeException("forced failure"));
                 return f;
             }
         };
 
-        Microservice fail2 = new Microservice("F2") {
-            @Override
-            public CompletableFuture<String> retrieveAsync(String input) {
-                CompletableFuture<String> f = new CompletableFuture<>();
-                f.completeExceptionally(new RuntimeException("fail"));
-                return f;
-            }
-        };
+        Microservice ok2 = new Microservice("OK2");
 
-        String fallback = "X";
+        CompletableFuture<List<String>> result = processor.processAsyncFailPartial(
+                List.of(ok1, fail, ok2),
+                List.of("m1", "m2", "m3"));
 
-        String out = processor.processAsyncFailSoft(
-                List.of(fail1, fail2),
-                List.of("a", "b"),
-                fallback).get(1, TimeUnit.SECONDS);
+        List<String> values = result.get(1, TimeUnit.SECONDS);
 
-        assertEquals("X X", out);
+        // should NOT throw; should contain only 2 successes
+        assertEquals(2, values.size());
+        assertTrue(values.get(0).startsWith("OK1:"));
+        assertTrue(values.get(1).startsWith("OK2:"));
     }
 
 }

@@ -62,10 +62,9 @@ public class AsyncProcessor {
     }
 
     // Task 2 B
-    public CompletableFuture<String> processAsyncFailSoft(
+    public CompletableFuture<List<String>> processAsyncFailPartial(
             List<Microservice> services,
-            List<String> messages,
-            String fallbackValue) {
+            List<String> messages) {
         if (services == null || messages == null) {
             throw new IllegalArgumentException("services/messages must not be null");
         }
@@ -73,19 +72,23 @@ public class AsyncProcessor {
             throw new IllegalArgumentException("services and messages must have same size");
         }
 
+        // Convert each call into a "safe" future that never throws:
+        // success -> CompletableFuture.completedFuture(result)
+        // failure -> CompletableFuture.completedFuture(null)
         List<CompletableFuture<String>> safeFutures = new ArrayList<>();
 
         for (int i = 0; i < services.size(); i++) {
             CompletableFuture<String> f = services.get(i).retrieveAsync(messages.get(i))
-                    .exceptionally(ex -> fallbackValue); // replace failure with fallback
+                    .handle((val, ex) -> ex == null ? val : null);
             safeFutures.add(f);
         }
 
-        // allOf cannot fail because each future maps failure -> fallback
+        // allOf now cannot fail (because each inner future completes normally)
         return CompletableFuture.allOf(safeFutures.toArray(new CompletableFuture[0]))
                 .thenApply(v -> safeFutures.stream()
                         .map(CompletableFuture::join)
-                        .collect(Collectors.joining(" ")));
+                        .filter(x -> x != null) // keep only successes
+                        .collect(Collectors.toList()));
     }
 
 }
