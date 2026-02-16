@@ -108,6 +108,8 @@ Because tasks complete in a nondeterministic order, the system must clearly defi
 
 By explicitly defining failure semantics, the system becomes more predictable and easier to reason about.
 
+In this project, microservices are executed concurrently using CompletableFuture. Since tasks run in parallel, their completion order is nondeterministic. The CompletableFuture.allOf mechanism aggregates results, and the chosen failure policy determines whether exceptions are propagated, ignored, or replaced with fallback values. In testing, timeouts are used to ensure liveness and prevent indefinite blocking.
+
 ---
 
 
